@@ -183,7 +183,6 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    needs: [build, package]
     
     steps:
     - uses: actions/checkout@v4
@@ -193,40 +192,54 @@ jobs:
       with:
         go-version: '1.21'
     
+    - name: Build all platforms
+      run: |
+        mkdir -p dist
+        
+        # Build for all platforms
+        GOOS=linux GOARCH=amd64 make build
+        cp bin/provider dist/provider-crossplane-terraform_linux_amd64
+        
+        GOOS=linux GOARCH=arm64 make build
+        cp bin/provider dist/provider-crossplane-terraform_linux_arm64
+        
+        GOOS=darwin GOARCH=amd64 make build
+        cp bin/provider dist/provider-crossplane-terraform_darwin_amd64
+        
+        GOOS=darwin GOARCH=arm64 make build
+        cp bin/provider dist/provider-crossplane-terraform_darwin_arm64
+    
     - name: Install Upbound CLI
       run: |
         curl -sL https://cli.upbound.io | sh
         sudo mv up /usr/local/bin/
     
-    - name: Download all build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-        pattern: provider-binaries-*
-        merge-multiple: true
-    
-    - name: Download package artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: crossplane-package
-        path: ./
+    - name: Build Crossplane package
+      run: |
+        # Build provider binary for package
+        make build
+        cp bin/provider package/
+        
+        # Generate version from git tag
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "Building package version: $VERSION"
+        
+        # Build the package
+        up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
+        
+        # Copy to dist
+        cp provider-crossplane-terraform-${VERSION}.xpkg dist/
     
     - name: Prepare release assets
       run: |
-        mkdir -p dist/
-        
-        # Copy all binaries to dist directory
-        find artifacts/ -name "provider-crossplane-terraform*" -exec cp {} dist/ \;
-        
-        # Copy the Crossplane package
-        cp provider-crossplane-terraform-*.xpkg dist/
+        cd dist
         
         # Create archives for each platform binary
-        cd dist
         for file in provider-crossplane-terraform_*; do
-          # All binaries - create tar.gz
-          tar -czf "$file.tar.gz" "$file"
-          rm "$file"
+          if [[ "$file" != *.xpkg ]]; then
+            tar -czf "$file.tar.gz" "$file"
+            rm "$file"
+          fi
         done
         
         # Create SHA256 checksums
@@ -247,21 +260,33 @@ jobs:
   publish-to-upbound:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    needs: package
+    needs: release
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
     
     - name: Install Upbound CLI
       run: |
         curl -sL https://cli.upbound.io | sh
         sudo mv up /usr/local/bin/
     
-    - name: Download package artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: crossplane-package
-        path: ./
+    - name: Build Crossplane package
+      run: |
+        # Build provider binary
+        make build
+        cp bin/provider package/
+        
+        # Generate version from git tag
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "Building package version: $VERSION"
+        
+        # Build the package
+        up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
     
     - name: Login to Upbound
       run: |
@@ -276,11 +301,11 @@ jobs:
         VERSION=${GITHUB_REF_NAME#v}  # Remove 'v' prefix if present
         
         # Push the package to Upbound
-        up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION} -f provider-crossplane-terraform-*.xpkg
+        up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION} -f provider-crossplane-terraform-${VERSION}.xpkg
         
         # Also push as 'latest' if this is not a pre-release
         if [[ ! "${VERSION}" =~ (alpha|beta|rc) ]]; then
-          up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest -f provider-crossplane-terraform-*.xpkg
+          up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest -f provider-crossplane-terraform-${VERSION}.xpkg
         fi
     
     - name: Update repository publish policy
