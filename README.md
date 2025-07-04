@@ -129,14 +129,34 @@ git push origin main
 **Result**: ✅ Automatic testing and validation, ❌ No publishing to Upbound
 
 #### For Publishing New Versions:
-```bash
-# 1. Create and push a version tag
-git tag v0.2.0
-git push origin v0.2.0
 
-# 2. Create a GitHub release (this triggers automatic publishing)
-gh release create v0.2.0 --title "v0.2.0" --notes "New features and bug fixes"
+##### Step 1: Create and Push a Version Tag
+
+```bash
+# Create a new version tag (increment the version number)
+git tag v0.2.3
+git push origin v0.2.3
 ```
+
+##### Step 2: Create a GitHub Release
+
+1. Go to your repository on GitHub: `https://github.com/mgeorge67701/crossplane-terraform`
+2. Click **"Releases"** on the right sidebar
+3. Click **"Create a new release"**
+4. Fill in the release form:
+   - **Tag version:** `v0.2.3` (should be pre-selected)
+   - **Release title:** `v0.2.3`
+   - **Description:** Add your release notes, for example:
+
+     ```text
+     ## Changes
+     - ✅ New feature: Added workspace management
+     - 🐛 Fixed: Binary path issues in CI/CD
+     - 📦 Updated: Dependencies to latest versions
+     ```
+
+5. Click **"Publish release"**
+
 **Result**: ✅ Automatic testing, building, and publishing to Upbound Marketplace
 
 ### 3. What Happens Automatically
@@ -160,281 +180,89 @@ When you create a GitHub release, the CI/CD pipeline will:
 
 ### 5. Monitoring
 
-- **GitHub Actions**: Check the Actions tab for build status
-- **Upbound Console**: Verify packages appear in your repositories
-- **Marketplace**: Confirm public visibility in Upbound Marketplace
+#### Check Build Status
 
-### Quick Setup Checklist
+After creating a release, monitor the progress:
 
-- [ ] Add `UPBOUND_ACCESS_ID` secret to GitHub
-- [ ] Add `UPBOUND_TOKEN` secret to GitHub  
-- [ ] Push changes to trigger first build test
-- [ ] Create a release tag to test full publishing pipeline
-- [ ] Verify provider appears in Upbound Marketplace
+1. **GitHub Actions**: Go to `https://github.com/mgeorge67701/crossplane-terraform/actions`
+2. **Look for the latest workflow run** with your release tag (e.g., `v0.2.3`)
+3. **Expected jobs to complete**:
+   - ✅ **test** (2 jobs) - Go 1.21 and 1.22 testing
+   - ✅ **validate-examples** (1 job) - YAML validation
+   - ✅ **build** (4 jobs) - Linux AMD64/ARM64, macOS AMD64/ARM64
+   - ✅ **package** (1 job) - Create .xpkg package
+   - ✅ **release** (1 job) - Upload assets to GitHub release
+   - ✅ **publish-to-upbound** (1 job) - Publish to Upbound Marketplace
 
-### Configure Provider
+#### Verify Release Assets
 
-Create a ProviderConfig to configure the provider:
+After successful completion:
 
+1. **Check GitHub Release**: `https://github.com/mgeorge67701/crossplane-terraform/releases/latest`
+   - Should contain platform-specific tar.gz files
+   - Should contain the .xpkg package
+   - Should contain SHA256SUMS file
+
+2. **Check Upbound Marketplace**: `https://marketplace.upbound.io/providers/mgeorge67701/provider-crossplane-terraform`
+   - Should show your new version
+   - Should be marked as "latest" (if not a pre-release)
+
+#### Common Build Issues
+
+##### GitHub Actions Permission Errors
+
+**Error**: `Resource not accessible by integration`
+**Solution**: The workflow needs proper permissions. This is already configured in the workflow file with:
 ```yaml
-apiVersion: terraform.crossplane.io/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: default
-spec:
-  credentials:
-    source: Secret
-    secretRef:
-      namespace: crossplane-system
-      name: terraform-creds
-      key: credentials
-  terraformVersion: "1.9.3"
-  backend:
-    type: "s3"
-    configuration:
-      bucket: "my-terraform-state"
-      region: "us-west-2"
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
 ```
 
-Create the credentials secret:
+If you still see this error:
+1. Check your repository settings: `Settings → Actions → General`
+2. Ensure "Read and write permissions" is selected for Workflow permissions
+3. Or manually grant permissions in the workflow file
 
-```bash
-kubectl create secret generic terraform-creds -n crossplane-system \
-  --from-literal=credentials='{"aws_access_key_id": "your-key", "aws_secret_access_key": "your-secret"}'
-```
+##### Provider not starting
 
-## Configuration
-
-### Backend Configuration
-
-The provider supports various Terraform backends:
-
-#### S3 Backend
-
-```yaml
-backend:
-  type: "s3"
-  configuration:
-    bucket: "my-terraform-state"
-    key: "path/to/terraform.tfstate"
-    region: "us-west-2"
-    encrypt: "true"
-```
-
-#### GCS Backend
-
-```yaml
-backend:
-  type: "gcs"
-  configuration:
-    bucket: "my-terraform-state"
-    prefix: "path/to/terraform.tfstate"
-```
-
-#### Azure Backend
-
-```yaml
-backend:
-  type: "azurerm"
-  configuration:
-    resource_group_name: "my-rg"
-    storage_account_name: "mystorageaccount"
-    container_name: "terraform-state"
-    key: "terraform.tfstate"
-```
-
-### Variable Management
-
-Variables can be provided in multiple ways:
-
-1. **Direct variables** in the resource spec
-2. **Environment variables** for sensitive data
-3. **ConfigMaps and Secrets** for shared configuration
-
-```yaml
-spec:
-  forProvider:
-    variables:
-      region: "us-west-2"
-      instance_type: "t3.micro"
-    environment:
-      TF_VAR_database_password: "secret-password"
-```
-
-### Source Configuration
-
-The provider supports multiple source types:
-
-#### Inline Configuration
-
-```yaml
-spec:
-  forProvider:
-    configuration: |
-      resource "aws_s3_bucket" "example" {
-        bucket = "my-bucket"
-      }
-```
-
-#### Git Repository
-
-```yaml
-spec:
-  forProvider:
-    source:
-      git:
-        url: "https://github.com/myorg/terraform-modules.git"
-        ref: "v1.0.0"
-        path: "modules/s3-bucket"
-```
-
-#### HTTP Source
-
-```yaml
-spec:
-  forProvider:
-    source:
-      http:
-        url: "https://example.com/terraform-module.tar.gz"
-        checksum: "sha256:abc123..."
-```
-
-## Examples
-
-### Basic S3 Bucket
-
-```yaml
-apiVersion: terraform.crossplane.io/v1alpha1
-kind: Terraform
-metadata:
-  name: s3-bucket-example
-spec:
-  forProvider:
-    configuration: |
-      terraform {
-        required_providers {
-          aws = {
-            source  = "hashicorp/aws"
-            version = "~> 5.0"
-          }
-        }
-      }
-      
-      resource "aws_s3_bucket" "example" {
-        bucket = var.bucket_name
-      }
-      
-      resource "aws_s3_bucket_versioning" "example" {
-        bucket = aws_s3_bucket.example.id
-        versioning_configuration {
-          status = "Enabled"
-        }
-      }
-    variables:
-      bucket_name: "my-crossplane-bucket"
-  providerConfigRef:
-    name: default
-```
-
-### Multi-Resource Infrastructure
-
-```yaml
-apiVersion: terraform.crossplane.io/v1alpha1
-kind: Terraform
-metadata:
-  name: vpc-infrastructure
-spec:
-  forProvider:
-    configuration: |
-      terraform {
-        required_providers {
-          aws = {
-            source  = "hashicorp/aws"
-            version = "~> 5.0"
-          }
-        }
-      }
-      
-      resource "aws_vpc" "main" {
-        cidr_block           = "10.0.0.0/16"
-        enable_dns_hostnames = true
-        enable_dns_support   = true
-        
-        tags = {
-          Name = "main-vpc"
-        }
-      }
-      
-      resource "aws_subnet" "public" {
-        count             = 2
-        vpc_id            = aws_vpc.main.id
-        cidr_block        = "10.0.${count.index + 1}.0/24"
-        availability_zone = data.aws_availability_zones.available.names[count.index]
-        
-        map_public_ip_on_launch = true
-        
-        tags = {
-          Name = "public-subnet-${count.index + 1}"
-        }
-      }
-      
-      data "aws_availability_zones" "available" {
-        state = "available"
-      }
-    backend:
-      type: "s3"
-      configuration:
-        bucket: "my-terraform-state"
-        key: "vpc/terraform.tfstate"
-        region: "us-west-2"
-  providerConfigRef:
-    name: default
-```
-
-## Development
-
-### Building the Provider
-
-```bash
-# Build the provider binary
-make build
-
-# Run tests
-make test
-
-# Build Docker image
-make docker-build
-
-# Generate CRDs
-make generate-crds
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-## Troubleshooting
-
-### Common Issues
-
-**Provider not starting**
 - Check that Crossplane is installed and running
 - Verify the provider package was applied correctly
 - Check the provider pod logs
 
-**Authentication errors**
+##### Authentication errors
+
 - Verify the credentials secret exists and has the correct keys
 - Check that the ProviderConfig references the correct secret
 - Ensure the service account has necessary permissions
 
-**Terraform execution errors**
+##### Terraform execution errors
+
 - Check the Terraform configuration syntax
 - Verify all required variables are provided
 - Check the backend configuration
+
+## Quick Setup Checklist
+
+### One-Time Setup (First Time Only)
+
+- [ ] **Add Upbound credentials to GitHub Secrets**:
+  - Go to `https://github.com/mgeorge67701/crossplane-terraform/settings/secrets/actions`
+  - Add `UPBOUND_ACCESS_ID` secret
+  - Add `UPBOUND_TOKEN` secret
+- [ ] **Test the build pipeline**:
+  - Push any change to main branch
+  - Verify build completes successfully
+
+### For Each New Release
+
+- [ ] **Create version tag**: `git tag v0.2.3 && git push origin v0.2.3`
+- [ ] **Create GitHub release**: Go to releases page and create new release
+- [ ] **Monitor build**: Check Actions tab for progress
+- [ ] **Verify assets**: Check release has all binary files
+- [ ] **Confirm publishing**: Check Upbound Marketplace for new version
 
 ### Debugging
 
