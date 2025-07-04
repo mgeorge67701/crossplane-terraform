@@ -1,0 +1,78 @@
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: Terraform
+metadata:
+  name: s3-bucket-example
+  labels:
+    app: example-infrastructure
+spec:
+  forProvider:
+    configuration: |
+      terraform {
+        required_providers {
+          aws = {
+            source  = "hashicorp/aws"
+            version = "~> 5.0"
+          }
+        }
+      }
+      
+      variable "bucket_name" {
+        description = "The name of the S3 bucket"
+        type        = string
+      }
+      
+      variable "environment" {
+        description = "Environment tag"
+        type        = string
+        default     = "dev"
+      }
+      
+      resource "aws_s3_bucket" "example" {
+        bucket = var.bucket_name
+        
+        tags = {
+          Environment = var.environment
+          ManagedBy   = "crossplane"
+        }
+      }
+      
+      resource "aws_s3_bucket_versioning" "example" {
+        bucket = aws_s3_bucket.example.id
+        versioning_configuration {
+          status = "Enabled"
+        }
+      }
+      
+      resource "aws_s3_bucket_server_side_encryption_configuration" "example" {
+        bucket = aws_s3_bucket.example.id
+        
+        rule {
+          apply_server_side_encryption_by_default {
+            sse_algorithm = "AES256"
+          }
+        }
+      }
+      
+      output "bucket_name" {
+        description = "Name of the created S3 bucket"
+        value       = aws_s3_bucket.example.bucket
+      }
+      
+      output "bucket_arn" {
+        description = "ARN of the created S3 bucket"
+        value       = aws_s3_bucket.example.arn
+      }
+    variables:
+      bucket_name: "crossplane-terraform-example-bucket"
+      environment: "production"
+    backend:
+      type: "s3"
+      configuration:
+        bucket: "my-terraform-state"
+        key: "s3-bucket-example/terraform.tfstate"
+        region: "us-west-2"
+        encrypt: "true"
+  providerConfigRef:
+    name: default
+  deletionPolicy: Delete
+  managementPolicies: ["*"]

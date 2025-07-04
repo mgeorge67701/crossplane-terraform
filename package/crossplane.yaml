@@ -1,0 +1,85 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Provider
+metadata:
+  name: provider-crossplane-terraform
+  annotations:
+    meta.crossplane.io/maintainer: "Mohan George <mgeorge67701@gmail.com>"
+    meta.crossplane.io/source: "https://github.com/mgeorge67701/crossplane-terraform"
+    meta.crossplane.io/license: "Apache-2.0"
+    meta.crossplane.io/description: "A Crossplane provider for managing Terraform resources with native Kubernetes APIs - by Mohan George"
+    meta.crossplane.io/readme: |
+      # Crossplane Terraform Provider
+      
+      This is a native Crossplane provider that enables you to manage Terraform resources using Kubernetes APIs.
+      
+      ## Managed Resources
+      
+      This provider supports the following managed resources:
+      
+      - **Terraform**: Manage Terraform configurations as Kubernetes resources
+      - **Workspace**: Manage Terraform workspaces with state isolation
+      
+      ## Features
+      
+      - Native Kubernetes API experience
+      - Terraform state management
+      - Workspace isolation
+      - Configuration as code
+      - GitOps-ready
+      
+      ## Installation
+      
+      ```bash
+      kubectl crossplane install provider xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v0.1.0
+      ```
+      
+      ## Usage
+      
+      Create a ProviderConfig:
+      
+      ```yaml
+      apiVersion: terraform.crossplane.io/v1alpha1
+      kind: ProviderConfig
+      metadata:
+        name: default
+      spec:
+        credentials:
+          source: Secret
+          secretRef:
+            namespace: crossplane-system
+            name: terraform-creds
+            key: credentials
+      ```
+      
+      Create a Terraform resource:
+      
+      ```yaml
+      apiVersion: terraform.crossplane.io/v1alpha1
+      kind: Terraform
+      metadata:
+        name: example-terraform
+      spec:
+        forProvider:
+          configuration: |
+            terraform {
+              required_providers {
+                aws = {
+                  source = "hashicorp/aws"
+                  version = "~> 5.0"
+                }
+              }
+            }
+            
+            resource "aws_s3_bucket" "example" {
+              bucket = "my-terraform-bucket"
+            }
+        providerConfigRef:
+          name: default
+      ```
+      
+      ## Documentation
+      
+      For more information, see the [provider documentation](https://github.com/mgeorge67701/crossplane-terraform).
+spec:
+  controller:
+    image: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v0.1.0

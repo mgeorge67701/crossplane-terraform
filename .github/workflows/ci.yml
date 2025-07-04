@@ -1,0 +1,282 @@
+name: Crossplane Provider CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests
+      run: go test -v ./...
+    
+    - name: Run go vet
+      run: go vet ./...
+    
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+    
+    - name: Run golangci-lint
+      run: golangci-lint run
+    
+    - name: Check formatting
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted properly:"
+          gofmt -s -l .
+          exit 1
+        fi
+    
+    - name: Generate CRDs
+      run: make generate
+    
+    - name: Verify CRDs are up to date
+      run: |
+        if [ -n "$(git status --porcelain package/crds/)" ]; then
+          echo "CRDs are not up to date. Please run 'make generate' and commit the changes."
+          git status --porcelain package/crds/
+          exit 1
+        fi
+
+  validate-examples:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate Crossplane example manifests
+      run: |
+        # Check if example files are valid YAML
+        find examples/ -name "*.yaml" -o -name "*.yml" | xargs -I {} sh -c 'echo "Validating {}" && cat {} | grep -q "apiVersion" || (echo "Invalid YAML: {}" && exit 1)'
+        
+        # Basic validation that examples contain required fields
+        if [ -f examples/crossplane-provider/terraform-vpc.yaml ]; then
+          grep -q "apiVersion: terraform.crossplane.io/v1alpha1" examples/crossplane-provider/terraform-vpc.yaml || (echo "Missing correct apiVersion" && exit 1)
+          grep -q "kind: Terraform" examples/crossplane-provider/terraform-vpc.yaml || (echo "Missing Terraform kind" && exit 1)
+        fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, validate-examples]
+    strategy:
+      matrix:
+        include:
+          # Linux (primary target for containers)
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          # Optional: macOS and Windows for local development
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Build Crossplane Provider
+      run: |
+        mkdir -p dist
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} make build
+        
+        # Copy binary to dist with platform-specific name
+        BINARY_NAME="provider-crossplane-terraform_${{ matrix.goos }}_${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+          cp provider.exe dist/$BINARY_NAME
+        else
+          cp provider dist/$BINARY_NAME
+        fi
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: provider-binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: dist/provider-crossplane-terraform_${{ matrix.goos }}_${{ matrix.goarch }}*
+
+  package:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Install Upbound CLI
+      run: |
+        curl -sL https://cli.upbound.io | sh
+        sudo mv up /usr/local/bin/
+    
+    - name: Build provider binary
+      run: make build
+    
+    - name: Copy provider binary to package
+      run: cp provider package/
+    
+    - name: Build Crossplane package
+      run: |
+        # Generate version from git tag or commit
+        VERSION=${GITHUB_REF_NAME:-$(git rev-parse --short HEAD)}
+        echo "Building package version: $VERSION"
+        
+        # Build the package
+        up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
+    
+    - name: Upload package artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: crossplane-package
+        path: provider-crossplane-terraform-*.xpkg
+
+  release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: [build, package]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Install Upbound CLI
+      run: |
+        curl -sL https://cli.upbound.io | sh
+        sudo mv up /usr/local/bin/
+    
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts/
+    
+    - name: Download package artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: crossplane-package
+        path: ./
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p dist/
+        
+        # Copy all binaries to dist directory
+        find artifacts/provider-binaries-* -name "provider-crossplane-terraform*" -exec cp {} dist/ \;
+        
+        # Copy the Crossplane package
+        cp provider-crossplane-terraform-*.xpkg dist/
+        
+        # Create archives for each platform binary
+        cd dist
+        for file in provider-crossplane-terraform_*; do
+          if [[ "$file" == *.exe ]]; then
+            # Windows binaries - create zip
+            zip "${file%.*}.zip" "$file"
+            rm "$file"
+          else
+            # Unix binaries - create tar.gz
+            tar -czf "$file.tar.gz" "$file"
+            rm "$file"
+          fi
+        done
+        
+        # Create SHA256 checksums
+        sha256sum *.{zip,tar.gz,xpkg} > provider-crossplane-terraform_SHA256SUMS
+        
+        ls -la
+    
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.zip
+          dist/*.tar.gz
+          dist/*.xpkg
+          dist/provider-crossplane-terraform_SHA256SUMS
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-upbound:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: package
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Upbound CLI
+      run: |
+        curl -sL https://cli.upbound.io | sh
+        sudo mv up /usr/local/bin/
+    
+    - name: Download package artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: crossplane-package
+        path: ./
+    
+    - name: Login to Upbound
+      run: |
+        up login --username="${{ secrets.UPBOUND_ACCESS_ID }}" --password="${{ secrets.UPBOUND_TOKEN }}"
+      env:
+        UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
+        UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
+    
+    - name: Push to Upbound Marketplace
+      run: |
+        # Get the release tag version
+        VERSION=${GITHUB_REF_NAME#v}  # Remove 'v' prefix if present
+        
+        # Push the package to Upbound
+        up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION} -f provider-crossplane-terraform-*.xpkg
+        
+        # Also push as 'latest' if this is not a pre-release
+        if [[ ! "${VERSION}" =~ (alpha|beta|rc) ]]; then
+          up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest -f provider-crossplane-terraform-*.xpkg
+        fi
+    
+    - name: Update repository publish policy
+      run: |
+        # Ensure repository is published to marketplace
+        up repository update provider-crossplane-terraform --publish --private=false || true

@@ -1,0 +1,19 @@
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: terraform-creds
+      key: credentials
+  terraformVersion: "1.9.3"
+  backend:
+    type: "s3"
+    configuration:
+      bucket: "my-terraform-state"
+      region: "us-west-2"
+  environment:
+    TF_LOG: "INFO"
