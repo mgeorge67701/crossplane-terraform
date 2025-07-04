@@ -317,7 +317,7 @@ jobs:
         up repository list | grep provider-crossplane-terraform || echo "Repository not found, will be created automatically"
         
         echo "Current user context:"
-        up whoami
+        up profile current
         
         echo "Ready to push package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
     
