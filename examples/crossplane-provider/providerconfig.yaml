@@ -9,7 +9,7 @@ spec:
       namespace: crossplane-system
       name: terraform-creds
       key: credentials
-  terraformVersion: "1.9.3"
+  terraformVersion: "1.12.2"
   backend:
     type: "s3"
     configuration:

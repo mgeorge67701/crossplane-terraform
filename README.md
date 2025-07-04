@@ -74,7 +74,7 @@ spec:
       environment: "production"
       region: "us-west-2"
     autoApply: true
-    terraformVersion: "1.9.3"
+    terraformVersion: "1.12.2"
     workingDirectory: "/terraform/modules/infrastructure"
   providerConfigRef:
     name: default
