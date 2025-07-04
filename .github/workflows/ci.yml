@@ -288,31 +288,61 @@ jobs:
         # Generate version from git tag
         VERSION=${GITHUB_REF_NAME#v}
         echo "Building package version: $VERSION"
+        echo "Package will be built as: provider-crossplane-terraform-${VERSION}.xpkg"
         
         # Build the package
         up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
+        
+        # Verify package was created
+        ls -la provider-crossplane-terraform-${VERSION}.xpkg
+        echo "Package size: $(du -h provider-crossplane-terraform-${VERSION}.xpkg)"
     
     - name: Login to Upbound
       run: |
+        echo "Logging in to Upbound..."
         up login --username="${{ secrets.UPBOUND_ACCESS_ID }}" --password="${{ secrets.UPBOUND_TOKEN }}"
+        echo "Login successful"
+        up whoami
       env:
         UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
         UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
+    
+    - name: Verify package and repository
+      run: |
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "Verifying package file exists..."
+        ls -la provider-crossplane-terraform-${VERSION}.xpkg
+        
+        echo "Checking repository access..."
+        up repository list | grep provider-crossplane-terraform || echo "Repository not found, will be created automatically"
+        
+        echo "Current user context:"
+        up whoami
+        
+        echo "Ready to push package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
     
     - name: Push to Upbound Marketplace
       run: |
         # Get the release tag version
         VERSION=${GITHUB_REF_NAME#v}  # Remove 'v' prefix if present
+        echo "Pushing package version: ${VERSION}"
+        echo "Full ref name: ${GITHUB_REF_NAME}"
         
         # Push the package to Upbound
+        echo "Pushing package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
         up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION} -f provider-crossplane-terraform-${VERSION}.xpkg
+        echo "Successfully pushed version ${VERSION}"
         
         # Also push as 'latest' if this is not a pre-release
         if [[ ! "${VERSION}" =~ (alpha|beta|rc) ]]; then
+          echo "Pushing as latest..."
           up xpkg push xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest -f provider-crossplane-terraform-${VERSION}.xpkg
+          echo "Successfully pushed as latest"
         fi
     
     - name: Update repository publish policy
       run: |
         # Ensure repository is published to marketplace
-        up repository update provider-crossplane-terraform --publish --private=false || true
+        echo "Updating repository publish policy..."
+        up repository update provider-crossplane-terraform --publish --private=false || echo "Repository update failed, continuing..."
+        echo "Repository update completed"
