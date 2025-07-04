@@ -97,13 +97,24 @@ kind: Provider
 metadata:
   name: provider-terraform
 spec:
-  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v0.1.0
+  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.0.0
 EOF
 ```
 
 ## Automatic Publishing Setup
 
-This provider includes GitHub Actions for automatic building and publishing to the Upbound Marketplace. Here's exactly what you need to do:
+This provider includes a **modernized GitHub Actions CI/CD pipeline** for automatic building and publishing to the Upbound Marketplace. The pipeline has been updated to use the latest actions, resolve all deprecation warnings, and ensure reliable cross-platform builds.
+
+### Pipeline Features
+
+- ✅ **Modern Actions**: Updated to latest GitHub Actions (v4/v5)
+- ✅ **Cross-Platform**: Linux and macOS (amd64/arm64) support
+- ✅ **Reliable Caching**: Optimized Go module caching
+- ✅ **Automatic Publishing**: Seamless Upbound Marketplace integration
+- ✅ **Release Assets**: Complete binary distribution with checksums
+- ✅ **Zero Deprecation Warnings**: All legacy actions updated
+
+Here's exactly what you need to do:
 
 ### 1. Add Upbound Credentials to GitHub Secrets
 
@@ -134,8 +145,8 @@ git push origin main
 
 ```bash
 # Create a new version tag (increment the version number)
-git tag v0.2.3
-git push origin v0.2.3
+git tag v3.0.1
+git push origin v3.0.1
 ```
 
 ##### Step 2: Create a GitHub Release
@@ -144,8 +155,8 @@ git push origin v0.2.3
 2. Click **"Releases"** on the right sidebar
 3. Click **"Create a new release"**
 4. Fill in the release form:
-   - **Tag version:** `v0.2.3` (should be pre-selected)
-   - **Release title:** `v0.2.3`
+   - **Tag version:** `v3.0.1` (should be pre-selected)
+   - **Release title:** `v3.0.1`
    - **Description:** Add your release notes, for example:
 
      ```text
@@ -185,7 +196,7 @@ When you create a GitHub release, the CI/CD pipeline will:
 After creating a release, monitor the progress:
 
 1. **GitHub Actions**: Go to `https://github.com/mgeorge67701/crossplane-terraform/actions`
-2. **Look for the latest workflow run** with your release tag (e.g., `v0.2.3`)
+2. **Look for the latest workflow run** with your release tag (e.g., `v3.0.1`)
 3. **Expected jobs to complete**:
    - ✅ **test** (2 jobs) - Go 1.21 and 1.22 testing
    - ✅ **validate-examples** (1 job) - YAML validation
@@ -258,7 +269,7 @@ If you still see this error:
 
 ### For Each New Release
 
-- [ ] **Create version tag**: `git tag v0.2.3 && git push origin v0.2.3`
+- [ ] **Create version tag**: `git tag v3.0.1 && git push origin v3.0.1`
 - [ ] **Create GitHub release**: Go to releases page and create new release
 - [ ] **Monitor build**: Check Actions tab for progress
 - [ ] **Verify assets**: Check release has all binary files
