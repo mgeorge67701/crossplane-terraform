@@ -94,13 +94,11 @@ jobs:
             goarch: amd64
           - goos: linux
             goarch: arm64
-          # Optional: macOS and Windows for local development
+          # Optional: macOS for local development
           - goos: darwin
             goarch: amd64
           - goos: darwin
             goarch: arm64
-          - goos: windows
-            goarch: amd64
     
     steps:
     - uses: actions/checkout@v4
@@ -117,12 +115,7 @@ jobs:
         
         # Copy binary to dist with platform-specific name
         BINARY_NAME="provider-crossplane-terraform_${{ matrix.goos }}_${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-          cp provider.exe dist/$BINARY_NAME
-        else
-          cp provider dist/$BINARY_NAME
-        fi
+        cp bin/provider dist/$BINARY_NAME
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -151,7 +144,7 @@ jobs:
       run: make build
     
     - name: Copy provider binary to package
-      run: cp provider package/
+      run: cp bin/provider package/
     
     - name: Build Crossplane package
       run: |
@@ -212,19 +205,13 @@ jobs:
         # Create archives for each platform binary
         cd dist
         for file in provider-crossplane-terraform_*; do
-          if [[ "$file" == *.exe ]]; then
-            # Windows binaries - create zip
-            zip "${file%.*}.zip" "$file"
-            rm "$file"
-          else
-            # Unix binaries - create tar.gz
-            tar -czf "$file.tar.gz" "$file"
-            rm "$file"
-          fi
+          # All binaries - create tar.gz
+          tar -czf "$file.tar.gz" "$file"
+          rm "$file"
         done
         
         # Create SHA256 checksums
-        sha256sum *.{zip,tar.gz,xpkg} > provider-crossplane-terraform_SHA256SUMS
+        sha256sum *.{tar.gz,xpkg} > provider-crossplane-terraform_SHA256SUMS
         
         ls -la
     
@@ -232,7 +219,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/*.zip
           dist/*.tar.gz
           dist/*.xpkg
           dist/provider-crossplane-terraform_SHA256SUMS
