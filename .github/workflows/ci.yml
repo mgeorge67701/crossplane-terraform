@@ -125,7 +125,7 @@ jobs:
         fi
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: provider-binaries-${{ matrix.goos }}-${{ matrix.goarch }}
         path: dist/provider-crossplane-terraform_${{ matrix.goos }}_${{ matrix.goarch }}*
@@ -163,7 +163,7 @@ jobs:
         up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
     
     - name: Upload package artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: crossplane-package
         path: provider-crossplane-terraform-*.xpkg
@@ -187,12 +187,14 @@ jobs:
         sudo mv up /usr/local/bin/
     
     - name: Download all build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts/
+        pattern: provider-binaries-*
+        merge-multiple: true
     
     - name: Download package artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: crossplane-package
         path: ./
@@ -202,7 +204,7 @@ jobs:
         mkdir -p dist/
         
         # Copy all binaries to dist directory
-        find artifacts/provider-binaries-* -name "provider-crossplane-terraform*" -exec cp {} dist/ \;
+        find artifacts/ -name "provider-crossplane-terraform*" -exec cp {} dist/ \;
         
         # Copy the Crossplane package
         cp provider-crossplane-terraform-*.xpkg dist/
@@ -251,7 +253,7 @@ jobs:
         sudo mv up /usr/local/bin/
     
     - name: Download package artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: crossplane-package
         path: ./
