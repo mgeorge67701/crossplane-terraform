@@ -3,12 +3,15 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/crossplane/crossplane-runtime/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -21,10 +24,17 @@ const (
 	errGetPC        = "cannot get ProviderConfig"
 	errGetCreds     = "cannot get credentials"
 	errNewClient    = "cannot create new Service"
+	errInitTF       = "cannot initialize Terraform"
+	errPlanTF       = "cannot plan Terraform"
+	errApplyTF      = "cannot apply Terraform"
+	errDestroyTF    = "cannot destroy Terraform"
+	errWriteConfig  = "cannot write Terraform configuration"
 )
 
-// A TerraformService does nothing.
-type TerraformService struct{}
+// A TerraformService manages Terraform configurations.
+type TerraformService struct {
+	workDir string
+}
 
 // A TerraformConnector is expected to produce a TerraformService when its Connect method
 // is called.
@@ -36,7 +46,15 @@ type TerraformConnector struct{}
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *TerraformConnector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	return &TerraformExternal{service: &TerraformService{}}, nil
+	// Create a working directory for this Terraform configuration
+	workDir := fmt.Sprintf("/tmp/terraform-%s", mg.GetName())
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return nil, errors.Wrap(err, "cannot create working directory")
+	}
+
+	return &TerraformExternal{
+		service: &TerraformService{workDir: workDir},
+	}, nil
 }
 
 // An TerraformExternal observes, then either creates, updates, or deletes an
@@ -51,22 +69,38 @@ func (c *TerraformExternal) Observe(ctx context.Context, mg resource.Managed) (m
 		return managed.ExternalObservation{}, errors.New(errNotTerraform)
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	// Write the Terraform configuration to a file
+	configPath := filepath.Join(c.service.workDir, "main.tf")
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Initialize Terraform executor
+	tf, err := tfexec.NewTerraform(c.service.workDir, "terraform")
+	if err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, errNewClient)
+	}
+
+	// Initialize Terraform
+	if err := tf.Init(ctx); err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, errInitTF)
+	}
+
+	// Check if the configuration has been applied
+	state, err := tf.Show(ctx)
+	if err != nil {
+		// If show fails, likely no state exists yet
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
+	// If we have state, the resource exists
+	resourceExists := state != nil
 
 	return managed.ExternalObservation{
-		// Return false when the external resource does not exist. This lets
-		// the managed resource reconciler know that it needs to call Create to
-		// (re)create the resource, or that it has successfully been deleted.
-		ResourceExists: true,
-
-		// Return false when the external resource exists, but it not up to date
-		// with the desired managed resource state. This lets the managed
-		// resource reconciler know that it needs to call Update.
-		ResourceUpToDate: true,
-
-		// Return any details that may be required to connect to the external
-		// resource. These will be stored as the connection secret.
+		ResourceExists:    resourceExists,
+		ResourceUpToDate:  resourceExists, // For now, assume it's up to date if it exists
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
@@ -77,11 +111,37 @@ func (c *TerraformExternal) Create(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalCreation{}, errors.New(errNotTerraform)
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	// Write the Terraform configuration to a file
+	configPath := filepath.Join(c.service.workDir, "main.tf")
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Initialize Terraform executor
+	tf, err := tfexec.NewTerraform(c.service.workDir, "terraform")
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errNewClient)
+	}
+
+	// Initialize Terraform
+	if err := tf.Init(ctx); err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errInitTF)
+	}
+
+	// Plan the changes
+	hasChanges, err := tf.Plan(ctx)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errPlanTF)
+	}
+
+	// Apply the configuration if there are changes
+	if hasChanges {
+		if err := tf.Apply(ctx); err != nil {
+			return managed.ExternalCreation{}, errors.Wrap(err, errApplyTF)
+		}
+	}
 
 	return managed.ExternalCreation{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
@@ -92,11 +152,37 @@ func (c *TerraformExternal) Update(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalUpdate{}, errors.New(errNotTerraform)
 	}
 
-	fmt.Printf("Updating: %+v", cr)
+	// Write the Terraform configuration to a file
+	configPath := filepath.Join(c.service.workDir, "main.tf")
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Initialize Terraform executor
+	tf, err := tfexec.NewTerraform(c.service.workDir, "terraform")
+	if err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, errNewClient)
+	}
+
+	// Initialize Terraform
+	if err := tf.Init(ctx); err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, errInitTF)
+	}
+
+	// Plan the changes
+	hasChanges, err := tf.Plan(ctx)
+	if err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, errPlanTF)
+	}
+
+	// Apply the configuration if there are changes
+	if hasChanges {
+		if err := tf.Apply(ctx); err != nil {
+			return managed.ExternalUpdate{}, errors.Wrap(err, errApplyTF)
+		}
+	}
 
 	return managed.ExternalUpdate{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
@@ -107,7 +193,33 @@ func (c *TerraformExternal) Delete(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalDelete{}, errors.New(errNotTerraform)
 	}
 
-	fmt.Printf("Deleting: %+v", cr)
+	// Write the Terraform configuration to a file
+	configPath := filepath.Join(c.service.workDir, "main.tf")
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Initialize Terraform executor
+	tf, err := tfexec.NewTerraform(c.service.workDir, "terraform")
+	if err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, errNewClient)
+	}
+
+	// Initialize Terraform
+	if err := tf.Init(ctx); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, errInitTF)
+	}
+
+	// Destroy the configuration
+	if err := tf.Destroy(ctx); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, errDestroyTF)
+	}
+
+	// Clean up the working directory
+	if err := os.RemoveAll(c.service.workDir); err != nil {
+		// Log the error but don't fail the deletion
+		fmt.Printf("Warning: failed to clean up working directory %s: %v\n", c.service.workDir, err)
+	}
 
 	return managed.ExternalDelete{}, nil
 }
