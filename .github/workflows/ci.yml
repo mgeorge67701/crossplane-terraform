@@ -287,7 +287,7 @@ jobs:
         echo "Logging in to Upbound..."
         up login --username="${{ secrets.UPBOUND_ACCESS_ID }}" --password="${{ secrets.UPBOUND_TOKEN }}"
         echo "Login successful"
-        up whoami
+        up profile current
       env:
         UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
         UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
@@ -331,7 +331,7 @@ jobs:
         echo "Logging in to Upbound..."
         up login --username="${{ secrets.UPBOUND_ACCESS_ID }}" --password="${{ secrets.UPBOUND_TOKEN }}"
         echo "Login successful"
-        up whoami
+        up profile current
       env:
         UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
         UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
