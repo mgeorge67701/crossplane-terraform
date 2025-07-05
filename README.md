@@ -25,7 +25,7 @@ kind: Provider
 metadata:
   name: provider-terraform
 spec:
-  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.1.2
+  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.1.7
 EOF
 ```
 

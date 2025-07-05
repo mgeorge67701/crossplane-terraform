@@ -32,7 +32,7 @@ ENTRYPOINT ["/usr/local/bin/provider"]
 # Add some metadata
 LABEL name="provider-crossplane-terraform" \
       vendor="Mohan George" \
-      version="v3.0.1" \
+      version="v3.1.7" \
       release="1" \
       summary="Crossplane Terraform Provider" \
       description="A Crossplane provider for managing Terraform resources with native Kubernetes APIs"

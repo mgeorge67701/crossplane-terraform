@@ -30,7 +30,7 @@ metadata:
       ## Installation
       
       ```bash
-      kubectl crossplane install provider xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.0.1
+      kubectl crossplane install provider xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.1.7
       ```
       
       ## Usage
