@@ -72,17 +72,14 @@ jobs:
           exit 1
         fi
     
-    - name: Generate CRDs
-      run: |
-        # Clean up any existing generated files
-        rm -rf package/crds/*.yaml || true
-        make generate
+    - name: Generate Go code
+      run: make generate
     
-    - name: Verify CRDs are up to date
+    - name: Check if Go code is up to date
       run: |
-        if [ -n "$(git status --porcelain package/crds/)" ]; then
-          echo "CRDs are not up to date. Please run 'make generate' and commit the changes."
-          git status --porcelain package/crds/
+        if [ -n "$(git status --porcelain apis/)" ]; then
+          echo "Generated Go code is not up to date. Please run 'make generate' and commit the changes."
+          git status --porcelain apis/
           exit 1
         fi
 

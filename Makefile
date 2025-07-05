@@ -43,6 +43,11 @@ help: ## Display this help.
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	go generate ./...
 
+.PHONY: generate-crds
+generate-crds: ## Generate CRDs from Go code
+	@which controller-gen >/dev/null 2>&1 || (echo "Installing controller-gen..." && go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest)
+	$(shell go env GOPATH)/bin/controller-gen crd:generateEmbeddedObjectMeta=true paths="./apis/..." output:crd:artifacts:config=package/crds
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...
