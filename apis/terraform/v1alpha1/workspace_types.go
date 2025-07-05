@@ -148,62 +148,62 @@ type WorkspaceList struct {
 
 // GetCondition of this Workspace.
 func (mg *Workspace) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
-	return mg.Status.GetCondition(ct)
+	return mg.Status.ResourceStatus.GetCondition(ct)
 }
 
 // GetDeletionPolicy of this Workspace.
 func (mg *Workspace) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
+	return mg.Spec.ResourceSpec.DeletionPolicy
 }
 
 // GetManagementPolicies of this Workspace.
 func (mg *Workspace) GetManagementPolicies() xpv1.ManagementPolicies {
-	return mg.Spec.ManagementPolicies
+	return mg.Spec.ResourceSpec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this Workspace.
 func (mg *Workspace) GetProviderConfigReference() *xpv1.Reference {
-	return mg.Spec.ProviderConfigReference
+	return mg.Spec.ResourceSpec.ProviderConfigReference
 }
 
 // GetPublishConnectionDetailsTo of this Workspace.
 func (mg *Workspace) GetPublishConnectionDetailsTo() *xpv1.PublishConnectionDetailsTo {
-	return mg.Spec.PublishConnectionDetailsTo
+	return mg.Spec.ResourceSpec.PublishConnectionDetailsTo
 }
 
 // GetWriteConnectionSecretToReference of this Workspace.
 func (mg *Workspace) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
-	return mg.Spec.WriteConnectionSecretToReference
+	return mg.Spec.ResourceSpec.WriteConnectionSecretToReference
 }
 
 // SetConditions of this Workspace.
 func (mg *Workspace) SetConditions(c ...xpv1.Condition) {
-	mg.Status.SetConditions(c...)
+	mg.Status.ResourceStatus.SetConditions(c...)
 }
 
 // SetDeletionPolicy of this Workspace.
 func (mg *Workspace) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
+	mg.Spec.ResourceSpec.DeletionPolicy = r
 }
 
 // SetManagementPolicies of this Workspace.
 func (mg *Workspace) SetManagementPolicies(r xpv1.ManagementPolicies) {
-	mg.Spec.ManagementPolicies = r
+	mg.Spec.ResourceSpec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this Workspace.
 func (mg *Workspace) SetProviderConfigReference(r *xpv1.Reference) {
-	mg.Spec.ProviderConfigReference = r
+	mg.Spec.ResourceSpec.ProviderConfigReference = r
 }
 
 // SetPublishConnectionDetailsTo of this Workspace.
 func (mg *Workspace) SetPublishConnectionDetailsTo(r *xpv1.PublishConnectionDetailsTo) {
-	mg.Spec.PublishConnectionDetailsTo = r
+	mg.Spec.ResourceSpec.PublishConnectionDetailsTo = r
 }
 
 // SetWriteConnectionSecretToReference of this Workspace.
 func (mg *Workspace) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
-	mg.Spec.WriteConnectionSecretToReference = r
+	mg.Spec.ResourceSpec.WriteConnectionSecretToReference = r
 }
 
 // WorkspaceGroupKind is the GroupKind for the Workspace resource.
