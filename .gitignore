@@ -17,6 +17,13 @@ go.work
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# Crossplane Provider specific
+bin/
+provider
+package/provider
+*.xpkg
+dist/
+
 # Terraform
 .terraform/
 .terraform.lock.hcl
@@ -78,3 +85,12 @@ Thumbs.db
 # Local development
 .env
 .env.local
+
+# Temporary files
+*.tmp
+*.temp
+*.sh~
+*.md~
+
+# Logs
+*.log

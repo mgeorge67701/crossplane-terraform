@@ -1,31 +1,65 @@
 # Crossplane Terraform Provider
 
-A Crossplane provider for managing Terraform resources natively in Kubernetes.
+![GitHub Release](https://img.shields.io/github/v/release/mgeorge67701/crossplane-terraform)
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/mgeorge67701/crossplane-terraform/ci.yml)
+![Go Version](https://img.shields.io/badge/go-1.24-blue)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
-## Overview
+A modern Crossplane provider for managing Terraform resources natively in Kubernetes with automated CI/CD and marketplace publishing.
 
-This provider enables you to manage Terraform configurations and workspaces using Kubernetes APIs through Crossplane. It provides native Kubernetes resources that map to Terraform concepts, allowing you to use GitOps workflows and Kubernetes-native tooling to manage your Terraform infrastructure.
+## 🚀 Quick Start
 
-## Features
+### Prerequisites
 
-- **Native Kubernetes API**: Manage Terraform resources using standard Kubernetes resources
-- **GitOps Ready**: Declarative configuration management with version control
-- **Workspace Management**: Full support for Terraform workspaces and state isolation
-- **Crossplane Integration**: Leverage Crossplane's composition and dependency management
-- **Multi-Backend Support**: Support for various Terraform backends (S3, GCS, Azure, etc.)
-- **Secure Credential Management**: Integration with Kubernetes secrets and external secret stores
+- Kubernetes cluster (1.23+)
+- Crossplane installed ([Installation Guide](https://docs.crossplane.io/latest/software/install/))
+- kubectl configured
 
-## Managed Resources
+### Install the Provider
 
-### Terraform
+```bash
+# Install the provider
+kubectl apply -f - <<EOF
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-terraform
+spec:
+  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.1.2
+EOF
+```
 
-The `Terraform` resource allows you to manage Terraform configurations as Kubernetes resources.
+### Configure Provider Credentials
 
-```yaml
+```bash
+# Create a secret with your cloud credentials
+kubectl create secret generic terraform-creds \
+  --from-literal=credentials='{"aws_access_key_id": "YOUR_KEY", "aws_secret_access_key": "YOUR_SECRET"}'
+
+# Create a ProviderConfig
+kubectl apply -f - <<EOF
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: terraform-creds
+      key: credentials
+EOF
+```
+
+### Create Your First Terraform Resource
+
+```bash
+kubectl apply -f - <<EOF
 apiVersion: terraform.crossplane.io/v1alpha1
 kind: Terraform
 metadata:
-  name: my-infrastructure
+  name: my-s3-bucket
 spec:
   forProvider:
     configuration: |
@@ -39,28 +73,65 @@ spec:
       }
       
       resource "aws_s3_bucket" "example" {
-        bucket = "my-example-bucket"
+        bucket = var.bucket_name
       }
       
-      output "bucket_name" {
-        value = aws_s3_bucket.example.bucket
+      output "bucket_arn" {
+        value = aws_s3_bucket.example.arn
       }
     variables:
-      region: "us-west-2"
-      environment: "production"
+      bucket_name: "my-crossplane-bucket-${random_id.suffix.hex}"
     backend:
       type: "s3"
       configuration:
-        bucket: "my-terraform-state"
-        key: "infrastructure/terraform.tfstate"
+        bucket: "my-terraform-state-bucket"
+        key: "crossplane/terraform.tfstate"
+        region: "us-west-2"
+  providerConfigRef:
+    name: default
+EOF
+```
+
+## 📋 What This Provider Does
+
+- **🔧 Native Kubernetes API**: Manage Terraform resources using standard Kubernetes resources
+- **🔄 GitOps Ready**: Declarative configuration management with version control
+- **🏗️ Workspace Management**: Full support for Terraform workspaces and state isolation
+- **🔗 Crossplane Integration**: Leverage Crossplane's composition and dependency management
+- **☁️ Multi-Backend Support**: Support for various Terraform backends (S3, GCS, Azure, etc.)
+- **🔐 Secure Credential Management**: Integration with Kubernetes secrets and external secret stores
+- **🚀 Automated CI/CD**: Modern GitHub Actions pipeline with automatic publishing
+
+## 📚 Available Resources
+
+### Terraform Resource
+
+Manage complete Terraform configurations as Kubernetes resources:
+
+```yaml
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: Terraform
+metadata:
+  name: my-infrastructure
+spec:
+  forProvider:
+    configuration: |
+      # Your Terraform configuration here
+    variables:
+      key: value
+    backend:
+      type: "s3"
+      configuration:
+        bucket: "my-state-bucket"
+        key: "terraform.tfstate"
         region: "us-west-2"
   providerConfigRef:
     name: default
 ```
 
-### Workspace
+### Workspace Resource
 
-The `Workspace` resource provides advanced workspace management capabilities.
+Advanced workspace management with environment isolation:
 
 ```yaml
 apiVersion: terraform.crossplane.io/v1alpha1
@@ -72,231 +143,327 @@ spec:
     name: production
     variables:
       environment: "production"
-      region: "us-west-2"
     autoApply: true
     terraformVersion: "1.12.2"
-    workingDirectory: "/terraform/modules/infrastructure"
   providerConfigRef:
     name: default
 ```
 
-## Installation
+## 🔧 Configuration Examples
 
-### Prerequisites
+### AWS S3 Bucket with VPC
 
-- Kubernetes cluster with Crossplane installed
-- kubectl configured to access your cluster
-
-### Install the Provider
-
-```bash
-# Install the provider
-kubectl apply -f - <<EOF
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
+```yaml
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: Terraform
 metadata:
-  name: provider-terraform
+  name: aws-infrastructure
 spec:
-  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.0.1
-EOF
+  forProvider:
+    configuration: |
+      terraform {
+        required_providers {
+          aws = {
+            source  = "hashicorp/aws"
+            version = "~> 5.0"
+          }
+        }
+      }
+      
+      # Create VPC
+      resource "aws_vpc" "main" {
+        cidr_block           = var.vpc_cidr
+        enable_dns_hostnames = true
+        enable_dns_support   = true
+        
+        tags = {
+          Name        = var.vpc_name
+          Environment = var.environment
+        }
+      }
+      
+      # Create S3 bucket
+      resource "aws_s3_bucket" "data" {
+        bucket = var.bucket_name
+        
+        tags = {
+          Environment = var.environment
+        }
+      }
+      
+      # Outputs
+      output "vpc_id" {
+        value = aws_vpc.main.id
+      }
+      
+      output "bucket_arn" {
+        value = aws_s3_bucket.data.arn
+      }
+    variables:
+      vpc_cidr: "10.0.0.0/16"
+      vpc_name: "crossplane-vpc"
+      bucket_name: "my-crossplane-data-bucket"
+      environment: "production"
+    backend:
+      type: "s3"
+      configuration:
+        bucket: "my-terraform-state"
+        key: "crossplane/aws-infrastructure.tfstate"
+        region: "us-west-2"
+  providerConfigRef:
+    name: default
 ```
 
-## Automatic Publishing Setup
+### Multi-Cloud Setup
 
-This provider includes a **modernized GitHub Actions CI/CD pipeline** for automatic building and publishing to the Upbound Marketplace. The pipeline has been updated to use the latest actions, resolve all deprecation warnings, and ensure reliable cross-platform builds.
+```yaml
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: Terraform
+metadata:
+  name: multi-cloud-setup
+spec:
+  forProvider:
+    configuration: |
+      terraform {
+        required_providers {
+          aws = {
+            source  = "hashicorp/aws"
+            version = "~> 5.0"
+          }
+          azurerm = {
+            source  = "hashicorp/azurerm"
+            version = "~> 3.0"
+          }
+        }
+      }
+      
+      # AWS S3 bucket
+      resource "aws_s3_bucket" "aws_storage" {
+        bucket = var.aws_bucket_name
+        
+        tags = {
+          Provider = "AWS"
+        }
+      }
+      
+      # Azure Storage Account
+      resource "azurerm_storage_account" "azure_storage" {
+        name                     = var.azure_storage_name
+        resource_group_name      = var.azure_resource_group
+        location                 = var.azure_location
+        account_tier             = "Standard"
+        account_replication_type = "LRS"
+        
+        tags = {
+          Provider = "Azure"
+        }
+      }
+    variables:
+      aws_bucket_name: "my-aws-bucket"
+      azure_storage_name: "myazurestorage"
+      azure_resource_group: "my-rg"
+      azure_location: "East US"
+  providerConfigRef:
+    name: default
+```
+
+## 🔐 Security & Credentials
+
+### Using Kubernetes Secrets
+
+```bash
+# Create secret for AWS credentials
+kubectl create secret generic aws-creds \
+  --from-literal=credentials='{"aws_access_key_id": "AKIAIOSFODNN7EXAMPLE", "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}'
+
+# Create secret for Azure credentials
+kubectl create secret generic azure-creds \
+  --from-literal=credentials='{"subscription_id": "00000000-0000-0000-0000-000000000000", "client_id": "00000000-0000-0000-0000-000000000000", "client_secret": "your-secret", "tenant_id": "00000000-0000-0000-0000-000000000000"}'
+```
+
+### ProviderConfig Examples
+
+```yaml
+# AWS ProviderConfig
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: aws-config
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: aws-creds
+      key: credentials
+---
+# Azure ProviderConfig
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: azure-config
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: azure-creds
+      key: credentials
+```
+
+## 🚀 For Developers: Automated CI/CD Pipeline
+
+This provider includes a **fully modernized GitHub Actions CI/CD pipeline** that automatically builds, tests, and publishes releases to the Upbound Marketplace.
 
 ### Pipeline Features
 
-- ✅ **Modern Actions**: Updated to latest GitHub Actions (v4/v5)
-- ✅ **Cross-Platform**: Linux and macOS (amd64/arm64) support
-- ✅ **Reliable Caching**: Optimized Go module caching
-- ✅ **Automatic Publishing**: Seamless Upbound Marketplace integration
-- ✅ **Release Assets**: Complete binary distribution with checksums
-- ✅ **Zero Deprecation Warnings**: All legacy actions updated
+- ✅ **Latest GitHub Actions**: Updated to actions/checkout@v4, setup-go@v5, etc.
+- ✅ **Go 1.24**: Latest stable Go version with built-in caching
+- ✅ **Cross-Platform Builds**: Linux (amd64/arm64), macOS (amd64/arm64)
+- ✅ **Automated Testing**: Full test suite with linting (golangci-lint)
+- ✅ **Docker Publishing**: Automatic container image publishing to GitHub Container Registry
+- ✅ **Marketplace Publishing**: Seamless Upbound Marketplace integration
+- ✅ **Release Assets**: Complete binary distribution with SHA256 checksums
+- ✅ **Zero Deprecation**: All legacy actions and configurations updated
 
-Here's exactly what you need to do:
+### Setup Instructions for Developers
 
-### 1. Add Upbound Credentials to GitHub Secrets
+#### 1. Configure GitHub Secrets
 
-Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**, then add these two secrets:
+Add these secrets to your GitHub repository (`Settings → Secrets and variables → Actions`):
 
-**Secret 1: Access ID**
-- **Name**: `UPBOUND_ACCESS_ID`
-- **Value**: Your Upbound Access ID (found in Upbound Console → Profile → Tokens)
+**Required Secrets:**
 
-**Secret 2: Token**
-- **Name**: `UPBOUND_TOKEN`
-- **Value**: Your Upbound authentication token (the long JWT token)
+- `UPBOUND_ACCESS_ID`: Your Upbound Access ID
+- `UPBOUND_TOKEN`: Your Upbound authentication token
 
-### 2. Development Workflow
+To get these credentials:
+1. Go to [Upbound Console](https://console.upbound.io/)
+2. Navigate to Profile → Tokens
+3. Create a new token or use existing credentials
 
-#### For Daily Development (Safe - No Publishing):
+#### 2. Development Workflow
+
+**For regular development (no publishing):**
 ```bash
-# Make your changes
 git add .
-git commit -m "Add new features"
+git commit -m "feat: add new functionality"
 git push origin main
 ```
-**Result**: ✅ Automatic testing and validation, ❌ No publishing to Upbound
+*Result: Runs tests and validation only*
 
-#### For Publishing New Versions:
-
-##### Step 1: Create and Push a Version Tag
-
+**For publishing new versions:**
 ```bash
-# Create a new version tag (increment the version number)
-git tag v3.0.1
-git push origin v3.0.1
+# Step 1: Create and push version tag
+git tag v3.2.0
+git push origin v3.2.0
+
+# Step 2: Create GitHub Release
+# Go to GitHub → Releases → Create new release
+# Use tag v3.2.0, add release notes, publish
+```
+*Result: Full build, test, and publish to Upbound Marketplace*
+
+#### 3. What Happens Automatically
+
+When you create a GitHub release:
+
+1. **🧪 Test**: Runs full test suite with Go 1.24
+2. **🔍 Lint**: Runs golangci-lint with latest version
+3. **📦 Build**: Creates binaries for all platforms
+4. **🐳 Docker**: Builds and pushes container image to `ghcr.io`
+5. **📋 Package**: Generates Crossplane `.xpkg` package
+6. **📤 Release**: Uploads assets to GitHub release
+7. **🌐 Publish**: Pushes package to Upbound Marketplace
+
+### Monitoring Your Releases
+
+- **GitHub Actions**: Check `Actions` tab for build status
+- **Container Registry**: View images at `ghcr.io/mgeorge67701/provider-crossplane-terraform`
+- **Upbound Marketplace**: Monitor at `marketplace.upbound.io`
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### Provider Not Starting
+```bash
+# Check provider status
+kubectl get providers
+
+# Check provider pods
+kubectl get pods -n crossplane-system -l pkg.crossplane.io/provider=provider-terraform
+
+# Check logs
+kubectl logs -n crossplane-system -l pkg.crossplane.io/provider=provider-terraform
 ```
 
-##### Step 2: Create a GitHub Release
+#### Authentication Errors
+```bash
+# Verify secrets exist
+kubectl get secrets
 
-1. Go to your repository on GitHub: `https://github.com/mgeorge67701/crossplane-terraform`
-2. Click **"Releases"** on the right sidebar
-3. Click **"Create a new release"**
-4. Fill in the release form:
-   - **Tag version:** `v3.0.1` (should be pre-selected)
-   - **Release title:** `v3.0.1`
-   - **Description:** Add your release notes, for example:
+# Check secret contents (base64 encoded)
+kubectl get secret terraform-creds -o yaml
 
-     ```text
-     ## Changes
-     - ✅ New feature: Added workspace management
-     - 🐛 Fixed: Binary path issues in CI/CD
-     - 📦 Updated: Dependencies to latest versions
-     ```
-
-5. Click **"Publish release"**
-
-**Result**: ✅ Automatic testing, building, and publishing to Upbound Marketplace
-
-### 3. What Happens Automatically
-
-When you create a GitHub release, the CI/CD pipeline will:
-
-1. **Test**: Run all tests and validations
-2. **Build**: Create cross-platform binaries (Linux, macOS, Windows)
-3. **Package**: Generate the Crossplane `.xpkg` package
-4. **Publish to GitHub**: Upload release assets with checksums
-5. **Publish to Upbound**: Push the package to Upbound Marketplace as:
-   - `xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v0.2.0`
-   - `xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest`
-6. **Update Marketplace**: Set repository to public and published
-
-### 4. Version Management
-
-- **Stable releases**: `v1.0.0`, `v1.1.0` → Gets tagged as `latest`
-- **Pre-releases**: `v1.0.0-alpha1`, `v1.0.0-beta1` → No `latest` tag
-- **Installation**: Users can install specific versions or `latest`
-
-### 5. Monitoring
-
-#### Check Build Status
-
-After creating a release, monitor the progress:
-
-1. **GitHub Actions**: Go to `https://github.com/mgeorge67701/crossplane-terraform/actions`
-2. **Look for the latest workflow run** with your release tag (e.g., `v3.0.1`)
-3. **Expected jobs to complete**:
-   - ✅ **test** (2 jobs) - Go 1.21 and 1.22 testing
-   - ✅ **validate-examples** (1 job) - YAML validation
-   - ✅ **build** (4 jobs) - Linux AMD64/ARM64, macOS AMD64/ARM64
-   - ✅ **package** (1 job) - Create .xpkg package
-   - ✅ **release** (1 job) - Upload assets to GitHub release
-   - ✅ **publish-to-upbound** (1 job) - Publish to Upbound Marketplace
-
-#### Verify Release Assets
-
-After successful completion:
-
-1. **Check GitHub Release**: `https://github.com/mgeorge67701/crossplane-terraform/releases/latest`
-   - Should contain platform-specific tar.gz files
-   - Should contain the .xpkg package
-   - Should contain SHA256SUMS file
-
-2. **Check Upbound Marketplace**: `https://marketplace.upbound.io/providers/mgeorge67701/provider-crossplane-terraform`
-   - Should show your new version
-   - Should be marked as "latest" (if not a pre-release)
-
-#### Common Build Issues
-
-##### GitHub Actions Permission Errors
-
-**Error**: `Resource not accessible by integration`
-**Solution**: The workflow needs proper permissions. This is already configured in the workflow file with:
-```yaml
-permissions:
-  contents: write
-  packages: write
-  attestations: write
-  id-token: write
+# Verify ProviderConfig
+kubectl get providerconfigs
+kubectl describe providerconfig default
 ```
 
-If you still see this error:
-1. Check your repository settings: `Settings → Actions → General`
-2. Ensure "Read and write permissions" is selected for Workflow permissions
-3. Or manually grant permissions in the workflow file
-
-##### Provider not starting
-
-- Check that Crossplane is installed and running
-- Verify the provider package was applied correctly
-- Check the provider pod logs
-
-##### Authentication errors
-
-- Verify the credentials secret exists and has the correct keys
-- Check that the ProviderConfig references the correct secret
-- Ensure the service account has necessary permissions
-
-##### Terraform execution errors
-
-- Check the Terraform configuration syntax
-- Verify all required variables are provided
-- Check the backend configuration
-
-## Quick Setup Checklist
-
-### One-Time Setup (First Time Only)
-
-- [ ] **Add Upbound credentials to GitHub Secrets**:
-  - Go to `https://github.com/mgeorge67701/crossplane-terraform/settings/secrets/actions`
-  - Add `UPBOUND_ACCESS_ID` secret
-  - Add `UPBOUND_TOKEN` secret
-- [ ] **Test the build pipeline**:
-  - Push any change to main branch
-  - Verify build completes successfully
-
-### For Each New Release
-
-- [ ] **Create version tag**: `git tag v3.0.1 && git push origin v3.0.1`
-- [ ] **Create GitHub release**: Go to releases page and create new release
-- [ ] **Monitor build**: Check Actions tab for progress
-- [ ] **Verify assets**: Check release has all binary files
-- [ ] **Confirm publishing**: Check Upbound Marketplace for new version
-
-### Debugging
-
-Enable debug logging:
-
+#### Terraform Execution Errors
 ```bash
+# Check Terraform resource status
+kubectl get terraform
+kubectl describe terraform my-terraform-resource
+
+# Check detailed logs
 kubectl logs -n crossplane-system deployment/provider-terraform -f
 ```
 
-## License
+### Debug Mode
 
-This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+Enable debug logging:
+```bash
+kubectl patch deployment provider-terraform -n crossplane-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"package-runtime","args":["--debug"]}]}}}}'
+```
 
-## Support
+## 📖 Examples
 
-- GitHub Issues: [https://github.com/mgeorge67701/crossplane-terraform/issues](https://github.com/mgeorge67701/crossplane-terraform/issues)
-- Documentation: [https://github.com/mgeorge67701/crossplane-terraform](https://github.com/mgeorge67701/crossplane-terraform)
+Check the `examples/` directory for more complete examples:
 
-## Roadmap
+- [`examples/crossplane-provider/terraform-s3-bucket.yaml`](examples/crossplane-provider/terraform-s3-bucket.yaml) - Simple S3 bucket
+- [`examples/crossplane-provider/terraform-vpc.yaml`](examples/crossplane-provider/terraform-vpc.yaml) - VPC with subnets
+- [`examples/crossplane-provider/providerconfig.yaml`](examples/crossplane-provider/providerconfig.yaml) - Provider configuration
 
-- [ ] Enhanced workspace management
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **GitHub Issues**: [Report bugs and request features](https://github.com/mgeorge67701/crossplane-terraform/issues)
+- **Documentation**: [Project documentation](https://github.com/mgeorge67701/crossplane-terraform)
+- **Crossplane Community**: [Join the Crossplane Slack](https://slack.crossplane.io/)
+
+## 🗺️ Roadmap
+
+- [ ] Enhanced workspace management with drift detection
 - [ ] Support for Terraform Cloud/Enterprise
-- [ ] Advanced state management features
-- [ ] Integration with more backends
-- [ ] Terraform module composition
-- [ ] Advanced GitOps workflows
+- [ ] Advanced state management and backup features
+- [ ] Integration with more cloud providers
+- [ ] Terraform module composition and reuse
+- [ ] Advanced GitOps workflows and policy management
+- [ ] Performance optimizations and scaling improvements
+
+---
+
+**Built with ❤️ for the Crossplane community**
