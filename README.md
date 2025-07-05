@@ -313,17 +313,18 @@ spec:
 
 ## 🚀 For Developers: Automated CI/CD Pipeline
 
-This provider includes a **fully modernized GitHub Actions CI/CD pipeline** that automatically builds, tests, and publishes releases to the Upbound Marketplace.
+This provider includes a **fully modernized GitHub Actions CI/CD pipeline** that automatically builds, tests, and publishes releases to the Upbound Marketplace. No manual builds or deployments needed!
 
 ### Pipeline Features
 
-- ✅ **Latest GitHub Actions**: Updated to actions/checkout@v4, setup-go@v5, etc.
-- ✅ **Go 1.24**: Latest stable Go version with built-in caching
-- ✅ **Cross-Platform Builds**: Linux (amd64/arm64), macOS (amd64/arm64)
-- ✅ **Automated Testing**: Full test suite with linting (golangci-lint)
-- ✅ **Docker Publishing**: Automatic container image publishing to GitHub Container Registry
-- ✅ **Marketplace Publishing**: Seamless Upbound Marketplace integration
+- ✅ **Latest GitHub Actions**: Updated to actions/checkout@v4, setup-go@v5, docker/build-push-action@v5
+- ✅ **Go 1.24**: Latest stable Go version with built-in dependency caching
+- ✅ **Multi-Architecture**: Linux (amd64/arm64), macOS (amd64/arm64), Windows (amd64)
+- ✅ **Automated Testing**: Full test suite with linting (golangci-lint v1.60.1)
+- ✅ **Docker Multi-Arch**: Automatic container image publishing to GitHub Container Registry
+- ✅ **Marketplace Publishing**: Seamless Upbound Marketplace integration with xpkg format
 - ✅ **Release Assets**: Complete binary distribution with SHA256 checksums
+- ✅ **Security Scanning**: Automated vulnerability scanning and dependency updates
 - ✅ **Zero Deprecation**: All legacy actions and configurations updated
 
 ### Setup Instructions for Developers
@@ -334,53 +335,172 @@ Add these secrets to your GitHub repository (`Settings → Secrets and variables
 
 **Required Secrets:**
 
-- `UPBOUND_ACCESS_ID`: Your Upbound Access ID
+- `UPBOUND_ACCESS_ID`: Your Upbound Access ID (e.g., `your-org` or `your-username`)
 - `UPBOUND_TOKEN`: Your Upbound authentication token
 
-To get these credentials:
+**Optional Secrets (for enhanced features):**
+
+- `REGISTRY_USERNAME`: Docker registry username (defaults to GitHub username)
+- `REGISTRY_PASSWORD`: Docker registry password (defaults to GitHub token)
+
+**Getting Upbound Credentials:**
+
 1. Go to [Upbound Console](https://console.upbound.io/)
 2. Navigate to Profile → Tokens
-3. Create a new token or use existing credentials
+3. Create a new token with "Repository" scope
+4. Copy the Access ID and Token to your GitHub secrets
 
 #### 2. Development Workflow
 
-**For regular development (no publishing):**
+**For regular development (push to main):**
+
 ```bash
+# Make your changes
 git add .
 git commit -m "feat: add new functionality"
 git push origin main
 ```
-*Result: Runs tests and validation only*
 
-**For publishing new versions:**
+**Result:** Runs tests, linting, and basic validation only
+
+**For publishing new versions (complete automation):**
+
 ```bash
-# Step 1: Create and push version tag
+# Step 1: Update version in package/crossplane.yaml if needed
+# Step 2: Create and push version tag
 git tag v3.2.0
 git push origin v3.2.0
 
-# Step 2: Create GitHub Release
-# Go to GitHub → Releases → Create new release
-# Use tag v3.2.0, add release notes, publish
+# Step 3: Create GitHub Release (triggers full pipeline)
+gh release create v3.2.0 --title "Release v3.2.0" --notes "
+## What's New
+- Updated to Terraform 1.12.2
+- Enhanced security and multi-arch support
+- Improved backend configuration handling
+
+## Installation
+\`\`\`bash
+kubectl apply -f - <<EOF
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-terraform
+spec:
+  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.2.0
+EOF
+\`\`\`
+"
 ```
-*Result: Full build, test, and publish to Upbound Marketplace*
+
+**Alternative: Using GitHub Web Interface:**
+
+1. Go to GitHub → Releases → "Create a new release"
+2. Choose or create tag `v3.2.0`
+3. Add release title and notes
+4. Click "Publish release"
+
+**Result:** Full build, test, package, and publish to Upbound Marketplace
 
 #### 3. What Happens Automatically
 
-When you create a GitHub release:
+**On Push to Main Branch:**
 
-1. **🧪 Test**: Runs full test suite with Go 1.24
-2. **🔍 Lint**: Runs golangci-lint with latest version
-3. **📦 Build**: Creates binaries for all platforms
-4. **🐳 Docker**: Builds and pushes container image to `ghcr.io`
-5. **📋 Package**: Generates Crossplane `.xpkg` package
-6. **📤 Release**: Uploads assets to GitHub release
-7. **🌐 Publish**: Pushes package to Upbound Marketplace
+1. **🧪 Test**: Runs `go test ./...` with race detection
+2. **🔍 Lint**: Runs golangci-lint with comprehensive rules
+3. **🏗️ Build**: Validates the build process
+
+**On GitHub Release:**
+
+1. **🧪 Test**: Full test suite with Go 1.24
+2. **🔍 Lint**: Comprehensive linting and code quality checks
+3. **📦 Build**: Creates binaries for all platforms (Linux, macOS, Windows)
+4. **🐳 Docker**: Builds multi-architecture container images (amd64, arm64)
+5. **📋 Package**: Generates Crossplane `.xpkg` package with proper metadata
+6. **📤 Release**: Uploads binaries and checksums to GitHub release
+7. **🌐 Publish**: Pushes package to Upbound Marketplace automatically
+8. **🏷️ Tag**: Updates container registry with proper tags
+
+### Complete Automation Features
+
+**Multi-Architecture Support:**
+
+- Linux: amd64, arm64
+- macOS: amd64, arm64 (Apple Silicon)
+- Windows: amd64
+- Container images: linux/amd64, linux/arm64
+
+**Security & Quality:**
+
+- Automated dependency updates via Dependabot
+- Vulnerability scanning with GitHub Security
+- Code quality checks with golangci-lint
+- Secure secret handling in CI/CD
+
+**Package Management:**
+
+- Automatic versioning from Git tags
+- Proper semver handling
+- Crossplane package validation
+- Upbound Marketplace compliance
 
 ### Monitoring Your Releases
 
-- **GitHub Actions**: Check `Actions` tab for build status
-- **Container Registry**: View images at `ghcr.io/mgeorge67701/provider-crossplane-terraform`
-- **Upbound Marketplace**: Monitor at `marketplace.upbound.io`
+**GitHub Actions Dashboard:**
+
+- **Status**: Check `Actions` tab for real-time build status
+- **Logs**: View detailed logs for each step
+- **Artifacts**: Download build artifacts if needed
+
+**Container Registry:**
+
+- **Images**: View at `ghcr.io/mgeorge67701/provider-crossplane-terraform`
+- **Tags**: Check available versions and architectures
+- **Security**: View vulnerability scan results
+
+**Upbound Marketplace:**
+
+- **Packages**: Monitor at `marketplace.upbound.io`
+- **Downloads**: Track package adoption
+- **Versions**: Verify published versions
+
+### CI/CD Pipeline Workflow
+
+```mermaid
+graph TD
+    A[Push to Main] --> B[Run Tests & Lint]
+    B --> C[Build Validation]
+    
+    D[Create GitHub Release] --> E[Full Test Suite]
+    E --> F[Multi-Arch Build]
+    F --> G[Docker Build & Push]
+    G --> H[Generate .xpkg Package]
+    H --> I[Upload Release Assets]
+    I --> J[Publish to Upbound]
+    J --> K[Update Registry Tags]
+```
+
+### Advanced Configuration
+
+**Customizing the Pipeline:**
+
+- Edit `.github/workflows/ci.yml` for custom build steps
+- Update `package/crossplane.yaml` for package metadata
+- Modify `Dockerfile` for container customization
+
+**Local Development:**
+
+```bash
+# Test locally before pushing
+make test
+make lint
+make build
+
+# Build Docker image locally
+make docker-build
+
+# Generate package locally
+make package
+```
 
 ## 🔍 Troubleshooting
 
