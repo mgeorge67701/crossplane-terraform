@@ -507,6 +507,7 @@ make package
 ### Common Issues
 
 #### Provider Not Starting
+
 ```bash
 # Check provider status
 kubectl get providers
@@ -519,6 +520,7 @@ kubectl logs -n crossplane-system -l pkg.crossplane.io/provider=provider-terrafo
 ```
 
 #### Authentication Errors
+
 ```bash
 # Verify secrets exist
 kubectl get secrets
@@ -532,6 +534,7 @@ kubectl describe providerconfig default
 ```
 
 #### Terraform Execution Errors
+
 ```bash
 # Check Terraform resource status
 kubectl get terraform
@@ -544,6 +547,7 @@ kubectl logs -n crossplane-system deployment/provider-terraform -f
 ### Debug Mode
 
 Enable debug logging:
+
 ```bash
 kubectl patch deployment provider-terraform -n crossplane-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"package-runtime","args":["--debug"]}]}}}}'
 ```
@@ -586,4 +590,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ---
 
-**Built with ❤️ for the Crossplane community**
+Built with ❤️ for the Crossplane community
