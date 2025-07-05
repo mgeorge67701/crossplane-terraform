@@ -101,14 +101,19 @@ func (c *TerraformExternal) Update(ctx context.Context, mg resource.Managed) (ma
 	}, nil
 }
 
-func (c *TerraformExternal) Delete(ctx context.Context, mg resource.Managed) error {
+func (c *TerraformExternal) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, ok := mg.(*v1alpha1.Terraform)
 	if !ok {
-		return errors.New(errNotTerraform)
+		return managed.ExternalDelete{}, errors.New(errNotTerraform)
 	}
 
 	fmt.Printf("Deleting: %+v", cr)
 
+	return managed.ExternalDelete{}, nil
+}
+
+func (c *TerraformExternal) Disconnect(ctx context.Context) error {
+	// Nothing to disconnect for this implementation
 	return nil
 }
 

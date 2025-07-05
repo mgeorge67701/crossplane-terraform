@@ -292,15 +292,22 @@ jobs:
         UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
         UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
     
-    - name: Build Docker image
+    - name: Build and push Docker image to GitHub Container Registry
       run: |
         # Generate version from git tag
         VERSION=${GITHUB_REF_NAME#v}
         echo "Building Docker image version: $VERSION"
         
-        # Build the Docker image locally
-        docker build -t provider-runtime:${VERSION} .
-        echo "Docker image built: provider-runtime:${VERSION}"
+        # Login to GitHub Container Registry
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        
+        # Build and push the Docker image
+        docker build -t ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION} .
+        docker tag ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION} ghcr.io/mgeorge67701/provider-crossplane-terraform:latest
+        docker push ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}
+        docker push ghcr.io/mgeorge67701/provider-crossplane-terraform:latest
+        
+        echo "Docker image pushed: ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
     
     - name: Build Crossplane package
       run: |
@@ -313,8 +320,11 @@ jobs:
         echo "Building package version: $VERSION"
         echo "Package will be built as: provider-crossplane-terraform-${VERSION}.xpkg"
         
-        # Build the package with embedded runtime image
-        up xpkg build --package-root=package --embed-runtime-image=provider-runtime:${VERSION} --output=provider-crossplane-terraform-${VERSION}.xpkg
+        # Update the image reference in crossplane.yaml
+        sed -i "s|image:.*|image: ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}|" package/crossplane.yaml
+        
+        # Build the package
+        up xpkg build --package-root=package --output=provider-crossplane-terraform-${VERSION}.xpkg
         
         # Verify package was created
         ls -la provider-crossplane-terraform-${VERSION}.xpkg

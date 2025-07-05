@@ -97,14 +97,19 @@ func (c *WorkspaceExternal) Update(ctx context.Context, mg resource.Managed) (ma
 	}, nil
 }
 
-func (c *WorkspaceExternal) Delete(ctx context.Context, mg resource.Managed) error {
+func (c *WorkspaceExternal) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, ok := mg.(*v1alpha1.Workspace)
 	if !ok {
-		return errors.New(errNotWorkspace)
+		return managed.ExternalDelete{}, errors.New(errNotWorkspace)
 	}
 
 	fmt.Printf("Deleting: %+v", cr)
 
+	return managed.ExternalDelete{}, nil
+}
+
+func (c *WorkspaceExternal) Disconnect(ctx context.Context) error {
+	// Nothing to disconnect for this implementation
 	return nil
 }
 
