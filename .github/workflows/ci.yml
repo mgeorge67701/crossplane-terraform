@@ -300,13 +300,16 @@ jobs:
         # Login to GitHub Container Registry
         echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
         
-        # Build and push the Docker image
-        docker build -t ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION} .
-        docker tag ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION} ghcr.io/mgeorge67701/provider-crossplane-terraform:latest
-        docker push ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}
-        docker push ghcr.io/mgeorge67701/provider-crossplane-terraform:latest
+        # Build and push multi-platform Docker image
+        docker buildx create --use --name multi-platform-builder
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --tag ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION} \
+          --tag ghcr.io/mgeorge67701/provider-crossplane-terraform:latest \
+          --push \
+          .
         
-        echo "Docker image pushed: ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
+        echo "Multi-platform Docker image pushed: ghcr.io/mgeorge67701/provider-crossplane-terraform:${VERSION}"
     
     - name: Build Crossplane package
       run: |
