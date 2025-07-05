@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM} golang:1.21-alpine AS build
+FROM --platform=${BUILDPLATFORM} golang:1.24-alpine AS build
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
