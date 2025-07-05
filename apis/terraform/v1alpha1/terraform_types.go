@@ -162,62 +162,62 @@ type TerraformList struct {
 
 // GetCondition of this Terraform.
 func (mg *Terraform) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
-	return mg.Status.ResourceStatus.GetCondition(ct)
+	return mg.Status.GetCondition(ct)
 }
 
 // GetDeletionPolicy of this Terraform.
 func (mg *Terraform) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.ResourceSpec.DeletionPolicy
+	return mg.Spec.DeletionPolicy
 }
 
 // GetManagementPolicies of this Terraform.
 func (mg *Terraform) GetManagementPolicies() xpv1.ManagementPolicies {
-	return mg.Spec.ResourceSpec.ManagementPolicies
+	return mg.Spec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this Terraform.
 func (mg *Terraform) GetProviderConfigReference() *xpv1.Reference {
-	return mg.Spec.ResourceSpec.ProviderConfigReference
+	return mg.Spec.ProviderConfigReference
 }
 
 // GetPublishConnectionDetailsTo of this Terraform.
 func (mg *Terraform) GetPublishConnectionDetailsTo() *xpv1.PublishConnectionDetailsTo {
-	return mg.Spec.ResourceSpec.PublishConnectionDetailsTo
+	return mg.Spec.PublishConnectionDetailsTo
 }
 
 // GetWriteConnectionSecretToReference of this Terraform.
 func (mg *Terraform) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
-	return mg.Spec.ResourceSpec.WriteConnectionSecretToReference
+	return mg.Spec.WriteConnectionSecretToReference
 }
 
 // SetConditions of this Terraform.
 func (mg *Terraform) SetConditions(c ...xpv1.Condition) {
-	mg.Status.ResourceStatus.SetConditions(c...)
+	mg.Status.SetConditions(c...)
 }
 
 // SetDeletionPolicy of this Terraform.
 func (mg *Terraform) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.ResourceSpec.DeletionPolicy = r
+	mg.Spec.DeletionPolicy = r
 }
 
 // SetManagementPolicies of this Terraform.
 func (mg *Terraform) SetManagementPolicies(r xpv1.ManagementPolicies) {
-	mg.Spec.ResourceSpec.ManagementPolicies = r
+	mg.Spec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this Terraform.
 func (mg *Terraform) SetProviderConfigReference(r *xpv1.Reference) {
-	mg.Spec.ResourceSpec.ProviderConfigReference = r
+	mg.Spec.ProviderConfigReference = r
 }
 
 // SetPublishConnectionDetailsTo of this Terraform.
 func (mg *Terraform) SetPublishConnectionDetailsTo(r *xpv1.PublishConnectionDetailsTo) {
-	mg.Spec.ResourceSpec.PublishConnectionDetailsTo = r
+	mg.Spec.PublishConnectionDetailsTo = r
 }
 
 // SetWriteConnectionSecretToReference of this Terraform.
 func (mg *Terraform) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
-	mg.Spec.ResourceSpec.WriteConnectionSecretToReference = r
+	mg.Spec.WriteConnectionSecretToReference = r
 }
 
 // TerraformGroupKind is the GroupKind for the Terraform resource.
