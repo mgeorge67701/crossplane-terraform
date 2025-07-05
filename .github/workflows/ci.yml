@@ -274,10 +274,39 @@ jobs:
       with:
         go-version: '1.21'
     
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
     - name: Install Upbound CLI
       run: |
         curl -sL https://cli.upbound.io | sh
         sudo mv up /usr/local/bin/
+    
+    - name: Login to Upbound
+      run: |
+        echo "Logging in to Upbound..."
+        up login --username="${{ secrets.UPBOUND_ACCESS_ID }}" --password="${{ secrets.UPBOUND_TOKEN }}"
+        echo "Login successful"
+        up whoami
+      env:
+        UPBOUND_ACCESS_ID: ${{ secrets.UPBOUND_ACCESS_ID }}
+        UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
+    
+    - name: Build and push Docker image
+      run: |
+        # Generate version from git tag
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "Building Docker image version: $VERSION"
+        
+        # Login to Upbound registry
+        echo "${{ secrets.UPBOUND_TOKEN }}" | docker login xpkg.upbound.io -u "${{ secrets.UPBOUND_ACCESS_ID }}" --password-stdin
+        
+        # Build the Docker image
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:${VERSION} \
+          -t xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:latest \
+          --push \
+          .
     
     - name: Build Crossplane package
       run: |
