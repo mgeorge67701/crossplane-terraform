@@ -315,6 +315,24 @@ spec:
 
 This provider includes a **fully modernized GitHub Actions CI/CD pipeline** that automatically builds, tests, and publishes releases to the Upbound Marketplace. No manual builds or deployments needed!
 
+### 🚀 Quick Start for Publishing
+
+**One-command release:**
+
+```bash
+# Create and publish a new release
+git tag v3.2.0 && git push origin v3.2.0
+gh release create v3.2.0 --generate-notes
+```
+
+**Result:** Automatically builds, tests, and publishes to Upbound Marketplace
+
+**Prerequisites:**
+
+- GitHub CLI installed (`gh`)
+- Upbound secrets configured in your GitHub repository
+- Version updated in `package/crossplane.yaml`
+
 ### Pipeline Features
 
 - ✅ **Latest GitHub Actions**: Updated to actions/checkout@v4, setup-go@v5, docker/build-push-action@v5
@@ -500,6 +518,73 @@ make docker-build
 
 # Generate package locally
 make package
+```
+
+### Verifying CI/CD Pipeline Success
+
+After creating a GitHub release, you can verify that the automated pipeline worked correctly:
+
+**1. Check GitHub Actions Status:**
+
+- Go to your GitHub repository → Actions tab
+- Look for the workflow run triggered by your release
+- Verify all steps completed successfully (green checkmarks)
+
+**2. Verify Container Image:**
+
+```bash
+# Check if the container image was published
+docker pull ghcr.io/mgeorge67701/provider-crossplane-terraform:v3.2.0
+
+# Verify multi-architecture support
+docker buildx imagetools inspect ghcr.io/mgeorge67701/provider-crossplane-terraform:v3.2.0
+```
+
+**3. Verify Upbound Marketplace:**
+
+- Visit [Upbound Marketplace](https://marketplace.upbound.io/)
+- Search for "provider-crossplane-terraform"
+- Verify your new version is available
+
+**4. Test the Published Package:**
+
+```bash
+# Install the provider using the new version
+kubectl apply -f - <<EOF
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-terraform
+spec:
+  package: xpkg.upbound.io/mgeorge67701/provider-crossplane-terraform:v3.2.0
+EOF
+
+# Check provider status
+kubectl get providers
+```
+
+**5. Verify Release Assets:**
+
+- Go to GitHub → Releases → Your release
+- Verify binaries and checksums are attached
+- Download and verify checksums if needed
+
+### CI/CD Pipeline Troubleshooting
+
+**Common Issues:**
+
+- **Missing Secrets**: Ensure `UPBOUND_ACCESS_ID` and `UPBOUND_TOKEN` are set
+- **Permission Errors**: Verify Upbound token has proper permissions
+- **Build Failures**: Check Go version compatibility and dependencies
+- **Docker Push Failures**: Verify GitHub Container Registry permissions
+
+**Debug Steps:**
+
+```bash
+# Check workflow logs in GitHub Actions
+# Look for specific error messages in failed steps
+# Verify all required secrets are configured
+# Check package/crossplane.yaml for valid metadata
 ```
 
 ## 🔍 Troubleshooting
