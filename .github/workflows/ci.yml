@@ -37,19 +37,14 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.24'
-        cache: true  # Enable built-in caching
-    
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-1.24-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-1.24-
-          ${{ runner.os }}-go-
+        cache: true
+        cache-dependency-path: 'go.sum'
     
     - name: Download dependencies
-      run: go mod download
+      run: |
+        # Clean any existing cache conflicts
+        go clean -modcache || true
+        go mod download
       env:
         GOPROXY: https://proxy.golang.org,direct
     
@@ -78,7 +73,10 @@ jobs:
         fi
     
     - name: Generate CRDs
-      run: make generate
+      run: |
+        # Clean up any existing generated files
+        rm -rf package/crds/*.yaml || true
+        make generate
     
     - name: Verify CRDs are up to date
       run: |
