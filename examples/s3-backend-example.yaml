@@ -1,0 +1,59 @@
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: Terraform
+metadata:
+  name: example-s3-backend
+  namespace: default
+spec:
+  forProvider:
+    # Terraform configuration
+    configuration: |
+      resource "aws_s3_bucket" "example" {
+        bucket = "my-terraform-example-bucket"
+        
+        tags = {
+          Name        = "Example Bucket"
+          Environment = "Development"
+        }
+      }
+      
+      resource "aws_s3_bucket_versioning" "example" {
+        bucket = aws_s3_bucket.example.id
+        versioning_configuration {
+          status = "Enabled"
+        }
+      }
+    
+    # S3 Backend Configuration for secure state storage
+    backend:
+      type: "s3"
+      configuration:
+        bucket: "my-terraform-state-bucket"
+        key: "crossplane/terraform-example.tfstate"
+        region: "us-west-2"
+        encrypt: "true"
+        dynamodb_table: "terraform-state-locks"
+        acl: "bucket-owner-full-control"
+    
+    # Terraform variables (optional)
+    variables:
+      environment: "development"
+      project_name: "crossplane-example"
+    
+    # Workspace name for state isolation (optional)
+    workspace: "development"
+  
+  # Provider configuration reference
+  providerConfigRef:
+    name: aws-provider-config
+---
+apiVersion: terraform.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: aws-provider-config
+spec:
+  # AWS credentials should be provided via IAM roles, not hardcoded
+  # The provider will use the pod's service account with IAM role
+  terraformVersion: "1.12.2"
+  # Optional: specify AWS profile or role ARN
+  configuration:
+    region: "us-west-2"

@@ -35,13 +35,16 @@ ENV TERRAFORM_VERSION=1.12.2
 ENV TF_IN_AUTOMATION=1
 ENV TF_PLUGIN_CACHE_DIR=/tf/plugin-cache
 
-# Download and install Terraform binary
-RUN curl -s -L https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH}.zip -o terraform.zip \
-    && unzip -d /usr/local/bin terraform.zip \
-    && rm terraform.zip \
-    && chmod +x /usr/local/bin/terraform \
-    && mkdir -p ${TF_PLUGIN_CACHE_DIR} \
-    && chown -R 2000 /tf
+# Download and install Terraform binary with checksum verification
+RUN TERRAFORM_SHA256_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" && \
+    curl -s -L ${TERRAFORM_SHA256_URL} -o terraform_checksums.txt && \
+    curl -s -L https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH}.zip -o terraform.zip && \
+    echo "$(grep terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH}.zip terraform_checksums.txt | cut -d' ' -f1) terraform.zip" | sha256sum -c - && \
+    unzip -d /usr/local/bin terraform.zip && \
+    rm terraform.zip terraform_checksums.txt && \
+    chmod +x /usr/local/bin/terraform && \
+    mkdir -p ${TF_PLUGIN_CACHE_DIR} && \
+    chown -R 2000 /tf
 
 # Copy the binary from build stage
 COPY --from=build /workspace/bin/provider /usr/local/bin/provider

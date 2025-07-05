@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -46,9 +47,9 @@ type TerraformConnector struct{}
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *TerraformConnector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	// Create a working directory for this Terraform configuration
+	// Create a working directory for this Terraform configuration with secure permissions
 	workDir := fmt.Sprintf("/tmp/terraform-%s", mg.GetName())
-	if err := os.MkdirAll(workDir, 0755); err != nil {
+	if err := os.MkdirAll(workDir, 0700); err != nil { // Changed from 0755 to 0700
 		return nil, errors.Wrap(err, "cannot create working directory")
 	}
 
@@ -69,10 +70,20 @@ func (c *TerraformExternal) Observe(ctx context.Context, mg resource.Managed) (m
 		return managed.ExternalObservation{}, errors.New(errNotTerraform)
 	}
 
-	// Write the Terraform configuration to a file
+	// Write the Terraform configuration to a file with secure permissions
 	configPath := filepath.Join(c.service.workDir, "main.tf")
-	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0600); err != nil { // Changed from 0644 to 0600
 		return managed.ExternalObservation{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Write backend configuration if specified
+	if err := c.writeBackendConfig(cr); err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot write backend configuration")
+	}
+
+	// Write variables configuration if specified
+	if err := c.writeVariablesConfig(cr); err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot write variables configuration")
 	}
 
 	// Initialize Terraform executor
@@ -111,10 +122,20 @@ func (c *TerraformExternal) Create(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalCreation{}, errors.New(errNotTerraform)
 	}
 
-	// Write the Terraform configuration to a file
+	// Write the Terraform configuration to a file with secure permissions
 	configPath := filepath.Join(c.service.workDir, "main.tf")
-	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0600); err != nil { // Changed from 0644 to 0600
 		return managed.ExternalCreation{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Write backend configuration if specified
+	if err := c.writeBackendConfig(cr); err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "cannot write backend configuration")
+	}
+
+	// Write variables configuration if specified
+	if err := c.writeVariablesConfig(cr); err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "cannot write variables configuration")
 	}
 
 	// Initialize Terraform executor
@@ -152,10 +173,20 @@ func (c *TerraformExternal) Update(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalUpdate{}, errors.New(errNotTerraform)
 	}
 
-	// Write the Terraform configuration to a file
+	// Write the Terraform configuration to a file with secure permissions
 	configPath := filepath.Join(c.service.workDir, "main.tf")
-	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0600); err != nil { // Changed from 0644 to 0600
 		return managed.ExternalUpdate{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Write backend configuration if specified
+	if err := c.writeBackendConfig(cr); err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot write backend configuration")
+	}
+
+	// Write variables configuration if specified
+	if err := c.writeVariablesConfig(cr); err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot write variables configuration")
 	}
 
 	// Initialize Terraform executor
@@ -193,10 +224,20 @@ func (c *TerraformExternal) Delete(ctx context.Context, mg resource.Managed) (ma
 		return managed.ExternalDelete{}, errors.New(errNotTerraform)
 	}
 
-	// Write the Terraform configuration to a file
+	// Write the Terraform configuration to a file with secure permissions
 	configPath := filepath.Join(c.service.workDir, "main.tf")
-	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0644); err != nil {
+	if err := os.WriteFile(configPath, cr.Spec.ForProvider.Configuration.Raw, 0600); err != nil { // Changed from 0644 to 0600
 		return managed.ExternalDelete{}, errors.Wrap(err, errWriteConfig)
+	}
+
+	// Write backend configuration if specified
+	if err := c.writeBackendConfig(cr); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot write backend configuration")
+	}
+
+	// Write variables configuration if specified
+	if err := c.writeVariablesConfig(cr); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot write variables configuration")
 	}
 
 	// Initialize Terraform executor
@@ -227,6 +268,46 @@ func (c *TerraformExternal) Delete(ctx context.Context, mg resource.Managed) (ma
 func (c *TerraformExternal) Disconnect(ctx context.Context) error {
 	// Nothing to disconnect for this implementation
 	return nil
+}
+
+// writeBackendConfig writes the Terraform backend configuration to a file
+func (c *TerraformExternal) writeBackendConfig(cr *v1alpha1.Terraform) error {
+	if cr.Spec.ForProvider.Backend == nil {
+		return nil // No backend configuration specified
+	}
+
+	backendPath := filepath.Join(c.service.workDir, "backend.tf")
+
+	// Build backend configuration
+	var backendConfig strings.Builder
+	backendConfig.WriteString(fmt.Sprintf("terraform {\n  backend \"%s\" {\n", cr.Spec.ForProvider.Backend.Type))
+
+	// Add backend configuration parameters
+	for key, value := range cr.Spec.ForProvider.Backend.Configuration {
+		backendConfig.WriteString(fmt.Sprintf("    %s = \"%s\"\n", key, value))
+	}
+
+	backendConfig.WriteString("  }\n}\n")
+
+	// Write backend configuration with secure permissions
+	return os.WriteFile(backendPath, []byte(backendConfig.String()), 0600)
+}
+
+// writeVariablesConfig writes Terraform variables to a tfvars file
+func (c *TerraformExternal) writeVariablesConfig(cr *v1alpha1.Terraform) error {
+	if len(cr.Spec.ForProvider.Variables) == 0 {
+		return nil // No variables specified
+	}
+
+	varsPath := filepath.Join(c.service.workDir, "terraform.tfvars")
+
+	var varsConfig strings.Builder
+	for key, value := range cr.Spec.ForProvider.Variables {
+		varsConfig.WriteString(fmt.Sprintf("%s = \"%s\"\n", key, value))
+	}
+
+	// Write variables with secure permissions
+	return os.WriteFile(varsPath, []byte(varsConfig.String()), 0600)
 }
 
 // SetupTerraform adds a controller that reconciles Terraform managed resources.
